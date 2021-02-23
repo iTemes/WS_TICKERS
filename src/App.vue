@@ -1,5 +1,27 @@
 <template>
   <div class="container mx-auto flex flex-col items-center bg-gray-100 p-4">
+    <div v-if="isLoading" class="fixed w-100 h-100 opacity-80 bg-purple-800 inset-0 z-50 flex items-center justify-center">
+      <svg
+        class="animate-spin -ml-1 mr-3 h-12 w-12 text-white"
+        xmlns="http://www.w3.org/2000/svg"
+        fill="none"
+        viewBox="0 0 24 24"
+      >
+        <circle
+          class="opacity-25"
+          cx="12"
+          cy="12"
+          r="10"
+          stroke="currentColor"
+          stroke-width="4"
+        />
+        <path
+          class="opacity-75"
+          fill="currentColor"
+          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+        />
+      </svg>
+    </div>
     <div class="container">
       <div class="w-full my-4" />
       <section>
@@ -17,9 +39,19 @@
                 name="wallet"
                 class="block w-full pr-10 border-gray-300 text-gray-900 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm rounded-md"
                 placeholder="Например DOGE"
+                @keyup="searchCoins"
                 @keydown.enter="add"
               >
             </div>
+            <div v-if="tipsVallet.length" class="flex bg-white shadow-md p-1 rounded-md shadow-md flex-wrap">
+              <span 
+                :key="index" v-for="(coin, index) in tipsVallet"
+                @click="selectTip(coin)"
+                class="inline-flex items-center px-2 m-1 rounded-md text-xs font-medium bg-gray-300 text-gray-800 cursor-pointer">
+                {{coin}}
+              </span>
+            </div>
+            <div v-if="isRepeat" class="text-sm text-red-600">Такой тикер уже добавлен</div>
           </div>
         </div>
         <button
@@ -140,16 +172,53 @@ export default {
       ticker: "",
       tickers: [],
       sel: null,
-      graph: []
+      graph: [],
+      coins: {},
+      isLoading: true,
+      tipsVallet: [],
+      isRepeat: false,
     };
   },
-
+  computed: {
+    
+  },
+  created() {
+    this.getCoinsData();
+  },
   methods: {
+    getCoinsData() { 
+      fetch('https://min-api.cryptocompare.com/data/all/coinlist?summary=true')
+        .then(result => result.json())
+        .then( data => {
+          this.coins = data.Data;
+          console.log('data-', data.Data);
+          this.isLoading = false;
+        })
+        .catch(err => console.log(err));
+    },
+    searchCoins() {
+      this.isRepeat = false;
+      const currentSearch = this.ticker;
+      const result = Object.keys(this.coins).filter(coin => {
+        // console.log('coin',this.coins[coin].FullName);
+        const name = this.coins[coin].FullName.toLowerCase();
+        return name.includes(currentSearch.toLowerCase());
+      })
+      // const result = Object.keys(this.coins).find(currentSearch);
+      console.log('search', currentSearch);
+      console.log('search', result);
+      this.tipsVallet = result.slice(0,4);
+    },
     add() {
       const currentTicker = {
         name: this.ticker,
         price: "-"
       };
+
+      if(this.tickers.find(t => t.name === currentTicker.name)) {
+        this.isRepeat = true;
+        return;
+      }
 
       this.tickers.push(currentTicker);
       setInterval(async () => {
@@ -158,8 +227,6 @@ export default {
         );
         const data = await f.json();
 
-        // currentTicker.price =  data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2);
-        console.log('currentTicker', currentTicker.name);
         this.tickers.find(t => t.name === currentTicker.name).price = 
           data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2);
 
@@ -168,6 +235,11 @@ export default {
         }
       }, 5000);
       this.ticker = "";
+    },
+    selectTip(ticker) {
+      this.ticker = ticker;
+      this.tipsVallet = this.tipsVallet.filter(t => t !== ticker);
+      this.add();
     },
 
     select(ticker) {
@@ -185,8 +257,8 @@ export default {
       return this.graph.map(
         price => 5 + ((price - minValue) * 95) / (maxValue - minValue)
       );
-    }
-  }
+    },
+  },
 };
 </script>
 
