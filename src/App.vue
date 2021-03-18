@@ -129,7 +129,7 @@
             v-for="t in paginatedTickers"
             :key="t.name"
             :class="{
-              'border-4': selectedTicket === t
+              'border-4': selectedTicker === t
             }"
             class="bg-white overflow-hidden shadow rounded-lg border-purple-800 border-solid cursor-pointer"
             @click="select(t)"
@@ -165,9 +165,9 @@
         </dl>
         <hr class="w-full border-t border-gray-600 my-4" />
       </template>
-      <section v-if="selectedTicket" class="relative">
+      <section v-if="selectedTicker" class="relative">
         <h3 class="text-lg leading-6 font-medium text-gray-900 my-8">
-          {{ selectedTicket.name }} - USD
+          {{ selectedTicker.name }} - USD
         </h3>
         <div class="flex items-end border-gray-600 border-b border-l h-64">
           <div
@@ -180,7 +180,7 @@
         <button
           type="button"
           class="absolute top-0 right-0"
-          @click="selectedTicket = null"
+          @click="selectedTicker = null"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -225,7 +225,7 @@
 // [x] График сломан если везде одинаковые значения
 // [x] При удалении тикера остается выбор
 
-import { loadTickers } from "./Api";
+import { subscribeToTicker, unsubscribeFromTicker } from "./Api";
 
 export default {
   data() {
@@ -235,7 +235,7 @@ export default {
 
       filter: "",
       page: 1,
-      selectedTicket: null,
+      selectedTicker: null,
       graph: [],
       coins: {},
       isLoading: true,
@@ -288,7 +288,7 @@ export default {
       this.filter = "";
       this.ticker = "";
     },
-    selectedTicket() {
+    selectedTicker() {
       this.graph = [];
     },
     paginatedTickers() {
@@ -324,30 +324,35 @@ export default {
 
     if (tickersData) {
       this.tickers = JSON.parse(tickersData);
-
-      setInterval(this.updateTickers, 5000);
+      this.tickers.forEach((ticker) => {
+        subscribeToTicker(ticker.name, (newPrice) =>
+          this.updateTicker(ticker.name, newPrice)
+        );
+      });
     }
 
     this.getCoinsData();
   },
   methods: {
+    updateTicker(tickerName, price) {
+      this.tickers
+        .filter((t) => t.name === tickerName)
+        .forEach((t) => {
+          console.log('t', t);
+          console.log('this.selectedTicker', this.selectedTicker);
+          if (t === this.selectedTicker) {
+            console.log('Push new price');
+            this.graph.push(price);
+          }
+          t.price = price;
+        });
+    },
+
     formatePrice(price) {
       if (price === "-") {
         return price;
       }
       return price > 1 ? price.toFixed(2) : price.toPrecision(2);
-    },
-    async updateTickers() {
-      if (!this.tickers.length) {
-        return;
-      }
-
-      const exchangeData = await loadTickers(this.tickers.map((t) => t.name));
-
-      this.tickers.forEach((ticker) => {
-        const price = exchangeData[ticker.name.toUpperCase()];
-        ticker.price = price ?? "-";
-      });
     },
     getCoinsData() {
       fetch("https://min-api.cryptocompare.com/data/all/coinlist?summary=true")
@@ -386,6 +391,9 @@ export default {
 
       if (!this.isRepeatTicker) {
         this.tickers = [...this.tickers, currentTicker];
+        subscribeToTicker(currentTicker.name, (newPrice) =>
+          this.updateTicker(currentTicker.name, newPrice)
+        );
       }
     },
     selectTip(ticker) {
@@ -394,13 +402,14 @@ export default {
       this.add();
     },
     select(ticker) {
-      this.selectedTicket = ticker;
+      this.selectedTicker = ticker;
     },
     handleDelete(tickerToRemove) {
       this.tickers = this.tickers.filter((t) => t !== tickerToRemove);
-      if (this.selectedTicket === tickerToRemove) {
-        this.selectedTicket = null;
+      if (this.selectedTicker === tickerToRemove) {
+        this.selectedTicker = null;
       }
+      unsubscribeFromTicker(tickerToRemove.name);
     }
   }
 };
