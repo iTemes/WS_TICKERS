@@ -17,10 +17,13 @@ socket.addEventListener("message", (e) => {
     e.data
   );
 
+  console.log("tickersHandlers", tickersHandlers);
+
   if (type === ERROR_INDEX) {
     console.log("ERROR", e.data);
   }
   if (type !== AGGREGATE_INDEX || newPrice === undefined) {
+    console.log("RETURN");
     return;
   }
 
